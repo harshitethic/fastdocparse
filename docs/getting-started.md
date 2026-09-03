@@ -44,6 +44,17 @@ Not sure what's bundled or where it lives? List them from the CLI:
 fastdocparse list-schemas
 ```
 
+Before running extraction, you can validate any hand-written JSON/YAML schema without a
+document or LLM credentials:
+
+```bash
+fastdocparse validate-schema schemas/my_invoice.json
+```
+
+The command reuses the same schema loader as `extract`, so malformed JSON/YAML, invalid
+field definitions, reserved names, and invalid examples fail with the same validation
+errors you would see during extraction.
+
 **Don't want to write JSON at all?** Describe what you want in plain English:
 
 ```bash
