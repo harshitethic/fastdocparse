@@ -236,5 +236,31 @@ def list_schemas():
     )
 
 
+@app.command(name="validate-schema")
+def validate_schema(
+    schema: Path = typer.Argument(
+        ...,
+        exists=True,
+        readable=True,
+        help="Path to a .json or .yaml schema file to validate.",
+    ),
+):
+    """Validate a schema file without loading a document or configuring an LLM."""
+    try:
+        doc_schema = Schema.from_file(schema)
+    except (ValidationError, ValueError, OSError) as e:
+        typer.echo(f"Could not load schema from {schema}: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    field_count = len(doc_schema.fields)
+    example_count = len(doc_schema.examples or [])
+    field_label = "field" if field_count == 1 else "fields"
+    example_label = "example" if example_count == 1 else "examples"
+    typer.echo(
+        f"Schema '{doc_schema.name}' is valid: "
+        f"{field_count} {field_label}, {example_count} {example_label}."
+    )
+
+
 if __name__ == "__main__":
     app()
