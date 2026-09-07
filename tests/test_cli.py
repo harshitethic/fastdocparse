@@ -223,6 +223,47 @@ def test_extract_command_reports_invalid_max_pages_cleanly():
     assert "Traceback" not in result.output
 
 
+def test_extract_command_passes_extraction_tuning_flags_to_parser():
+    fake_result = {"_meta": {"truncated": False, "truncation_reason": None}}
+
+    with patch("fastdocparse.cli.DocumentParser") as parser_cls, patch("fastdocparse.cli.LLMClient"):
+        parser_cls.return_value.extract.return_value = fake_result
+        result = runner.invoke(
+            app,
+            [
+                "extract", str(SAMPLE_IMAGE), str(INVOICE_SCHEMA_PATH),
+                "--chunk-max-tokens", "1200",
+                "--pdf-render-dpi", "200",
+                "--max-image-dim", "1024",
+                "--ocr-min-confidence", "0.75",
+                "--max-concurrent-chunks", "4",
+                "--api-key", "test-key",
+            ],
+        )
+
+    assert result.exit_code == 0
+    config = parser_cls.call_args.kwargs["config"]
+    assert config.chunk_max_tokens == 1200
+    assert config.pdf_render_dpi == 200
+    assert config.max_image_dim == 1024
+    assert config.ocr_min_confidence == 0.75
+    assert config.max_concurrent_chunks == 4
+
+
+def test_extract_command_reports_invalid_ocr_confidence_cleanly():
+    result = runner.invoke(
+        app,
+        [
+            "extract", str(SAMPLE_IMAGE), str(INVOICE_SCHEMA_PATH),
+            "--ocr-min-confidence", "2.0", "--api-key", "test-key",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "ocr_min_confidence must be between 0 and 1" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_schema_from_text_creates_missing_output_directory(tmp_path):
     fake_schema = json.dumps({
         "name": "ShipmentManifest",
