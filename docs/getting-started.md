@@ -185,6 +185,12 @@ config = ExtractionConfig(max_pages=10, chunk_max_tokens=4000)
 parser = DocumentParser(client=client, config=config)
 ```
 
+The same tuning knobs are available from the CLI: `--max-pages`, `--chunk-max-tokens`, `--pdf-render-dpi`, `--max-image-dim`, `--ocr-min-confidence`, and `--max-concurrent-chunks`. For example:
+
+```bash
+fastdocparse extract invoice.pdf invoice.json --max-concurrent-chunks 4 --pdf-render-dpi 200
+```
+
 ### B.6 Add support for a new document format (optional)
 
 Only PDF and images (PNG/JPG) are built in. To add another format (DOCX, XLSX, ...),

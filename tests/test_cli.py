@@ -420,3 +420,27 @@ def test_extract_command_still_accepts_a_readable_schema(tmp_path):
     payload = json.loads(result.output)
     assert payload["x"]["value"] == "value"
     assert "readable" not in result.output.lower()
+
+
+def test_extract_command_maps_tuning_flags_to_config():
+    with patch("fastdocparse.cli.LLMClient") as client_cls, patch("fastdocparse.cli.DocumentParser") as parser_cls:
+        parser_cls.return_value.extract.return_value = {}
+        result = runner.invoke(app, [
+            "extract", str(SAMPLE_IMAGE), str(INVOICE_SCHEMA_PATH), "--api-key", "test-key",
+            "--max-pages", "7", "--chunk-max-tokens", "4321", "--pdf-render-dpi", "222",
+            "--max-image-dim", "1200", "--ocr-min-confidence", "0.75",
+            "--max-concurrent-chunks", "4",
+        ])
+    assert result.exit_code == 0
+    config = parser_cls.call_args.kwargs["config"]
+    assert config == ExtractionConfig(max_pages=7, chunk_max_tokens=4321, pdf_render_dpi=222, max_image_dim=1200, ocr_min_confidence=0.75, max_concurrent_chunks=4)
+    client_cls.assert_called_once()
+
+
+def test_extract_command_reports_invalid_tuning_flag_cleanly():
+    result = runner.invoke(app, [
+        "extract", str(SAMPLE_IMAGE), str(INVOICE_SCHEMA_PATH), "--api-key", "test-key",
+        "--ocr-min-confidence", "2.0",
+    ])
+    assert result.exit_code == 1
+    assert "ocr_min_confidence must be between 0 and 1" in result.output
