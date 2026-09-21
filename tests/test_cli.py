@@ -420,3 +420,82 @@ def test_extract_command_still_accepts_a_readable_schema(tmp_path):
     payload = json.loads(result.output)
     assert payload["x"]["value"] == "value"
     assert "readable" not in result.output.lower()
+
+
+def test_extract_command_passes_all_extraction_tuning_flags_to_parser():
+    fake_result = {"_meta": {"truncated": False, "truncation_reason": None}}
+
+    with patch("fastdocparse.cli.DocumentParser") as parser_cls, patch("fastdocparse.cli.LLMClient"):
+        parser_cls.return_value.extract.return_value = fake_result
+
+        result = runner.invoke(
+            app,
+            [
+                "extract",
+                str(SAMPLE_IMAGE),
+                str(INVOICE_SCHEMA_PATH),
+                "--max-pages",
+                "7",
+                "--chunk-max-tokens",
+                "2048",
+                "--pdf-render-dpi",
+                "200",
+                "--max-image-dim",
+                "1024",
+                "--ocr-min-confidence",
+                "0.65",
+                "--max-concurrent-chunks",
+                "4",
+                "--api-key",
+                "test-key",
+            ],
+        )
+
+    assert result.exit_code == 0
+    config = parser_cls.call_args.kwargs["config"]
+    assert config == ExtractionConfig(
+        max_pages=7,
+        chunk_max_tokens=2048,
+        pdf_render_dpi=200,
+        max_image_dim=1024,
+        ocr_min_confidence=0.65,
+        max_concurrent_chunks=4,
+    )
+
+
+def test_extract_command_reports_invalid_ocr_confidence_cleanly():
+    result = runner.invoke(
+        app,
+        [
+            "extract",
+            str(SAMPLE_IMAGE),
+            str(INVOICE_SCHEMA_PATH),
+            "--ocr-min-confidence",
+            "1.5",
+            "--api-key",
+            "test-key",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "ocr_min_confidence must be between 0 and 1" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_extract_command_reports_invalid_chunk_concurrency_cleanly():
+    result = runner.invoke(
+        app,
+        [
+            "extract",
+            str(SAMPLE_IMAGE),
+            str(INVOICE_SCHEMA_PATH),
+            "--max-concurrent-chunks",
+            "0",
+            "--api-key",
+            "test-key",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "max_concurrent_chunks must be positive" in result.output
+    assert "Traceback" not in result.output
