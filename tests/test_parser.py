@@ -4,10 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from fastdocparse.config import ExtractionConfig
 from fastdocparse.example_schemas import INVOICE_SCHEMA
 from fastdocparse.grounding import Issue
 from fastdocparse.llm_client import LLMClient
-from fastdocparse.parser import DocumentParser, _parse_json_from_llm
+from fastdocparse.parser import DocumentParser, _ingest_pdf, _parse_json_from_llm
 from fastdocparse.schema import Field, Schema
 
 
@@ -357,3 +358,53 @@ def test_tc5_3_truncation_flag():
     assert "20 pages" in res["_meta"]["truncation_reason"]
 
 
+
+
+def test_scanned_pdf_ocr_fallback_processes_all_configured_pages():
+    """OCR fallback must not silently discard pages after page 1."""
+    pages = [
+        MagicMock(index=0, png_bytes=b"page-1"),
+        MagicMock(index=1, png_bytes=b"page-2"),
+        MagicMock(index=2, png_bytes=b"page-3"),
+    ]
+    config = ExtractionConfig(max_pages=3)
+
+    with (
+        patch("fastdocparse.parser.extract_text_from_pdf", return_value=""),
+        patch("fastdocparse.parser.pdf_to_page_images", return_value=pages) as render_pages,
+        patch(
+            "fastdocparse.parser.extract_text_from_image_ocr",
+            side_effect=["First page text", "Second page text", "Third page text"],
+        ) as ocr,
+    ):
+        text = _ingest_pdf(b"scanned-pdf", structured_mode=False, config=config)
+
+    render_pages.assert_called_once_with(
+        b"scanned-pdf",
+        max_pages=3,
+        dpi=config.pdf_render_dpi,
+        max_dim=config.max_image_dim,
+    )
+    assert [call.args[0] for call in ocr.call_args_list] == [b"page-1", b"page-2", b"page-3"]
+    assert text == (
+        "--- PAGE 1 ---\nFirst page text\n\n"
+        "--- PAGE 2 ---\nSecond page text\n\n"
+        "--- PAGE 3 ---\nThird page text"
+    )
+
+
+def test_scanned_pdf_ocr_fallback_skips_empty_ocr_pages_but_keeps_page_numbers():
+    """Empty OCR output should not erase the source page number of later pages."""
+    pages = [
+        MagicMock(index=0, png_bytes=b"page-1"),
+        MagicMock(index=1, png_bytes=b"page-2"),
+    ]
+
+    with (
+        patch("fastdocparse.parser.extract_text_from_pdf", return_value=""),
+        patch("fastdocparse.parser.pdf_to_page_images", return_value=pages),
+        patch("fastdocparse.parser.extract_text_from_image_ocr", side_effect=["", "Second page text"]),
+    ):
+        text = _ingest_pdf(b"scanned-pdf", structured_mode=False, config=ExtractionConfig(max_pages=2))
+
+    assert text == "--- PAGE 2 ---\nSecond page text"
