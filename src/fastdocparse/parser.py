@@ -105,15 +105,27 @@ def _merge_extracted_data(results: list[dict[str, Any]], chunks: list[str], sche
 def _ingest_pdf(document_bytes: bytes, structured_mode: bool, config: ExtractionConfig) -> str:
     doc_text = extract_text_from_pdf(document_bytes, max_pages=config.max_pages, structured_mode=structured_mode)
     if len(doc_text.strip()) < 30:
-        # Scanned PDF: run local OCR on first page image
-        logger.info("Digital text layer too short (%d chars); falling back to OCR on page 1.", len(doc_text.strip()))
+        logger.info(
+            "Digital text layer too short (%d chars); falling back to OCR on up to %d page(s).",
+            len(doc_text.strip()),
+            config.max_pages,
+        )
         pages = pdf_to_page_images(
-            document_bytes, max_pages=1, dpi=config.pdf_render_dpi, max_dim=config.max_image_dim
+            document_bytes,
+            max_pages=config.max_pages,
+            dpi=config.pdf_render_dpi,
+            max_dim=config.max_image_dim,
         )
         if pages:
-            doc_text = extract_text_from_image_ocr(
-                pages[0].png_bytes, structured_mode=structured_mode, min_confidence=config.ocr_min_confidence
-            )
+            ocr_pages = [
+                extract_text_from_image_ocr(
+                    page.png_bytes,
+                    structured_mode=structured_mode,
+                    min_confidence=config.ocr_min_confidence,
+                )
+                for page in pages
+            ]
+            doc_text = "\n\n".join(page_text for page_text in ocr_pages if page_text.strip())
     return doc_text
 
 
