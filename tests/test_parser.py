@@ -4,10 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from fastdocparse.config import ExtractionConfig
 from fastdocparse.example_schemas import INVOICE_SCHEMA
 from fastdocparse.grounding import Issue
 from fastdocparse.llm_client import LLMClient
-from fastdocparse.parser import DocumentParser, _parse_json_from_llm
+from fastdocparse.parser import DocumentParser, _ingest_pdf, _parse_json_from_llm
 from fastdocparse.schema import Field, Schema
 
 
@@ -66,6 +67,30 @@ def test_tc1_3_scanned_receipt():
         
     mock_ocr.assert_called_once()
     assert res["total"]["value"] == "15.00"
+
+def test_scanned_pdf_ocr_processes_all_pages_up_to_config_limit():
+    config = ExtractionConfig(max_pages=2)
+    pages = [MagicMock(png_bytes=b"page-1"), MagicMock(png_bytes=b"page-2")]
+
+    with (
+        patch("fastdocparse.parser.extract_text_from_pdf", return_value=""),
+        patch("fastdocparse.parser.pdf_to_page_images", return_value=pages) as render_pages,
+        patch(
+            "fastdocparse.parser.extract_text_from_image_ocr",
+            side_effect=["first page text", "second page text"],
+        ) as ocr,
+    ):
+        text = _ingest_pdf(b"pdf-bytes", structured_mode=False, config=config)
+
+    assert text == "first page text\n\nsecond page text"
+    render_pages.assert_called_once_with(
+        b"pdf-bytes",
+        max_pages=2,
+        dpi=config.pdf_render_dpi,
+        max_dim=config.max_image_dim,
+    )
+    assert [call.args[0] for call in ocr.call_args_list] == [b"page-1", b"page-2"]
+
 
 def test_tc1_4_different_endpoints():
     """TC1.4 - Point model= at two different endpoints."""
