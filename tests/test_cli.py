@@ -215,6 +215,72 @@ def test_extract_command_passes_max_pages_to_document_parser():
     assert kwargs["config"].max_pages == 5
 
 
+def test_extract_command_passes_all_tuning_flags_to_document_parser():
+    fake_result = {
+        "_meta": {"truncated": False, "truncation_reason": None},
+        "invoice_number": {"value": "INV-1", "confidence": "high", "flags": ["grounded"]},
+    }
+
+    with patch("fastdocparse.cli.DocumentParser") as parser_cls, patch("fastdocparse.cli.LLMClient"):
+        parser = parser_cls.return_value
+        parser.extract.return_value = fake_result
+
+        result = runner.invoke(
+            app,
+            [
+                "extract",
+                str(SAMPLE_IMAGE),
+                str(INVOICE_SCHEMA_PATH),
+                "--max-pages",
+                "7",
+                "--chunk-max-tokens",
+                "4200",
+                "--pdf-render-dpi",
+                "200",
+                "--max-image-dim",
+                "2048",
+                "--ocr-min-confidence",
+                "0.65",
+                "--max-concurrent-chunks",
+                "4",
+                "--api-key",
+                "test-key",
+            ],
+        )
+
+    assert result.exit_code == 0
+    config = parser_cls.call_args.kwargs["config"]
+    assert config == ExtractionConfig(
+        max_pages=7,
+        chunk_max_tokens=4200,
+        pdf_render_dpi=200,
+        max_image_dim=2048,
+        ocr_min_confidence=0.65,
+        max_concurrent_chunks=4,
+    )
+
+
+@pytest.mark.parametrize(
+    ("flag", "value", "message"),
+    [
+        ("--chunk-max-tokens", "0", "chunk_max_tokens must be positive"),
+        ("--pdf-render-dpi", "0", "pdf_render_dpi must be positive"),
+        ("--max-image-dim", "0", "max_image_dim must be positive"),
+        ("--ocr-min-confidence", "1.1", "ocr_min_confidence must be between 0 and 1"),
+        ("--max-concurrent-chunks", "0", "max_concurrent_chunks must be positive"),
+    ],
+)
+def test_extract_command_reports_invalid_tuning_flags_cleanly(flag, value, message):
+    result = runner.invoke(
+        app,
+        ["extract", str(SAMPLE_IMAGE), str(INVOICE_SCHEMA_PATH), flag, value, "--api-key", "test-key"],
+    )
+
+    assert result.exit_code == 1
+    assert message in result.output
+    assert "Traceback" not in result.output
+
+
 def test_extract_command_reports_invalid_max_pages_cleanly():
     result = runner.invoke(app, ["extract", str(SAMPLE_IMAGE), str(INVOICE_SCHEMA_PATH), "--max-pages", "0", "--api-key", "test-key"])
 
