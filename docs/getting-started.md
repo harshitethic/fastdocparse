@@ -191,6 +191,19 @@ config = ExtractionConfig(max_pages=10, chunk_max_tokens=4000)
 parser = DocumentParser(client=client, config=config)
 ```
 
+The same tuning knobs are available from the CLI when you do not need the
+Python API, for example:
+
+```bash
+fastdocparse extract document.pdf schema.json \
+  --max-pages 10 \
+  --chunk-max-tokens 4000 \
+  --pdf-render-dpi 200 \
+  --max-image-dim 2048 \
+  --ocr-min-confidence 0.5 \
+  --max-concurrent-chunks 4
+```
+
 ### B.6 Add support for a new document format (optional)
 
 Only PDF and images (PNG/JPG) are built in. To add another format (DOCX, XLSX, ...),
