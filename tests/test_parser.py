@@ -7,7 +7,8 @@ import pytest
 from fastdocparse.example_schemas import INVOICE_SCHEMA
 from fastdocparse.grounding import Issue
 from fastdocparse.llm_client import LLMClient
-from fastdocparse.parser import DocumentParser, _parse_json_from_llm
+from fastdocparse.config import ExtractionConfig
+from fastdocparse.parser import DocumentParser, _ingest_pdf, _parse_json_from_llm
 from fastdocparse.schema import Field, Schema
 
 
