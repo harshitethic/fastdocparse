@@ -118,6 +118,11 @@ def extract(
     output: Path | None = typer.Option(None, "--output", "-o", help="Write the JSON result to this file instead of printing it."),
     kind: str | None = typer.Option(None, "--kind", help="Override ingestion routing (e.g. 'docx' for a custom handler loaded via FASTDOCPARSE_PLUGINS). Defaults to auto-detecting pdf/image from the file extension."),
     max_pages: int = typer.Option(15, "--max-pages", help="Maximum pages to process before truncating (default: 15)."),
+    chunk_max_tokens: int = typer.Option(3000, "--chunk-max-tokens", help="Maximum token estimate per LLM chunk (default: 3000)."),
+    pdf_render_dpi: int = typer.Option(150, "--pdf-render-dpi", help="DPI used to render PDF pages for OCR (default: 150)."),
+    max_image_dim: int = typer.Option(1536, "--max-image-dim", help="Maximum image dimension before OCR downscaling (default: 1536)."),
+    ocr_min_confidence: float = typer.Option(0.3, "--ocr-min-confidence", help="Discard OCR text below this confidence, from 0 to 1 (default: 0.3)."),
+    max_concurrent_chunks: int = typer.Option(1, "--max-concurrent-chunks", help="Maximum LLM chunks processed concurrently (default: 1)."),
 ):
     """Extract the fields defined in SCHEMA from FILE and print the result as JSON."""
     if schema is None:
