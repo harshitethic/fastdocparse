@@ -85,6 +85,12 @@ Options:
 | `--base-url` | OpenAI-compatible endpoint URL. Omit for real OpenAI. Also settable via `FASTDOCPARSE_BASE_URL`. | OpenAI |
 | `--api-key` | API key. Also settable via `LLM_API_KEY` or `OPENAI_API_KEY`. Any string works for local Ollama. | none |
 | `--output`, `-o` | Save the JSON result to a file instead of printing it | stdout |
+| `--max-pages` | Maximum PDF pages to process | `15` |
+| `--chunk-max-tokens` | Maximum token estimate per LLM chunk | `3000` |
+| `--pdf-render-dpi` | DPI used when rendering PDF pages for OCR | `150` |
+| `--max-image-dim` | Maximum image dimension before OCR downscaling | `1536` |
+| `--ocr-min-confidence` | OCR confidence threshold from 0 to 1 | `0.3` |
+| `--max-concurrent-chunks` | Maximum LLM chunks processed concurrently | `1` |
 
 PDF vs. image is detected automatically from the file extension.
 
