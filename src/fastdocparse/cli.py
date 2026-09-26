@@ -150,7 +150,14 @@ def extract(
     _check_llm_credentials(base_url, api_key)
 
     try:
-        config = ExtractionConfig(max_pages=max_pages)
+        config = ExtractionConfig(
+            max_pages=max_pages,
+            chunk_max_tokens=chunk_max_tokens,
+            pdf_render_dpi=pdf_render_dpi,
+            max_image_dim=max_image_dim,
+            ocr_min_confidence=ocr_min_confidence,
+            max_concurrent_chunks=max_concurrent_chunks,
+        )
     except ValueError as e:
         typer.echo(f"Extraction failed: {e}", err=True)
         raise typer.Exit(code=1)
