@@ -4,10 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from fastdocparse.config import ExtractionConfig
 from fastdocparse.example_schemas import INVOICE_SCHEMA
 from fastdocparse.grounding import Issue
 from fastdocparse.llm_client import LLMClient
-from fastdocparse.parser import DocumentParser, _parse_json_from_llm
+from fastdocparse.parser import DocumentParser, _ingest_pdf, _parse_json_from_llm
 from fastdocparse.schema import Field, Schema
 
 
@@ -66,6 +67,39 @@ def test_tc1_3_scanned_receipt():
         
     mock_ocr.assert_called_once()
     assert res["total"]["value"] == "15.00"
+
+def test_pdf_ocr_fallback_processes_all_configured_pages():
+    """Scanned PDFs OCR every rendered page up to the configured page cap."""
+    config = ExtractionConfig(
+        max_pages=2,
+        pdf_render_dpi=200,
+        max_image_dim=1200,
+        ocr_min_confidence=0.7,
+    )
+    pages = [
+        MagicMock(index=0, png_bytes=b"page-one"),
+        MagicMock(index=1, png_bytes=b"page-two"),
+    ]
+
+    with patch("fastdocparse.parser.extract_text_from_pdf", return_value=""), \
+         patch("fastdocparse.parser.pdf_to_page_images", return_value=pages) as mock_render, \
+         patch(
+             "fastdocparse.parser.extract_text_from_image_ocr",
+             side_effect=["first page text", "second page text"],
+         ) as mock_ocr:
+        text = _ingest_pdf(b"scanned-pdf", structured_mode=True, config=config)
+
+    mock_render.assert_called_once_with(
+        b"scanned-pdf",
+        max_pages=2,
+        dpi=200,
+        max_dim=1200,
+    )
+    assert [call.args[0] for call in mock_ocr.call_args_list] == [b"page-one", b"page-two"]
+    assert all(call.kwargs["structured_mode"] is True for call in mock_ocr.call_args_list)
+    assert all(call.kwargs["min_confidence"] == 0.7 for call in mock_ocr.call_args_list)
+    assert text == "first page text\n\nsecond page text"
+
 
 def test_tc1_4_different_endpoints():
     """TC1.4 - Point model= at two different endpoints."""
