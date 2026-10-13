@@ -11,6 +11,99 @@ from fastdocparse.parser import DocumentParser, _parse_json_from_llm
 from fastdocparse.schema import Field, Schema
 
 
+
+def test_scanned_pdf_ocr_fallback_reads_every_configured_page_in_order():
+    """Issue #86: scanned PDF fallback must not silently discard page 2+."""
+    from fastdocparse.config import ExtractionConfig
+    from fastdocparse.parser import _ingest_pdf
+    from fastdocparse.pdf_utils import PageImage
+
+    config = ExtractionConfig(max_pages=3, pdf_render_dpi=110, max_image_dim=800, ocr_min_confidence=0.42)
+    pages = [
+        PageImage(index=i, png_bytes=f"page-{i+1}".encode(), width=100, height=50)
+        for i in range(3)
+    ]
+    with (
+        patch("fastdocparse.parser.extract_text_from_pdf", return_value="") as digital,
+        patch("fastdocparse.parser.pdf_to_page_images", return_value=pages) as render,
+        patch("fastdocparse.parser.extract_text_from_image_ocr", side_effect=["HEADER", "", "AMOUNT 420"]) as ocr,
+    ):
+        extracted = _ingest_pdf(b"scanned-document", structured_mode=True, config=config)
+
+    assert extracted == "--- Page 1 ---\nHEADER\n\n--- Page 3 ---\nAMOUNT 420"
+    digital.assert_called_once_with(b"scanned-document", max_pages=3, structured_mode=True)
+    render.assert_called_once_with(b"scanned-document", max_pages=3, dpi=110, max_dim=800)
+    assert ocr.call_count == 3
+    assert [call.args[0] for call in ocr.call_args_list] == [b"page-1", b"page-2", b"page-3"]
+    assert all(call.kwargs == {"structured_mode": True, "min_confidence": 0.42} for call in ocr.call_args_list)
+
+
+def test_scanned_pdf_single_page_preserves_legacy_text_without_page_markers():
+    from fastdocparse.config import ExtractionConfig
+    from fastdocparse.parser import _ingest_pdf
+    from fastdocparse.pdf_utils import PageImage
+
+    with (
+        patch("fastdocparse.parser.extract_text_from_pdf", return_value=""),
+        patch("fastdocparse.parser.pdf_to_page_images", return_value=[
+            PageImage(index=0, png_bytes=b"first", width=100, height=50)
+        ]) as render,
+        patch("fastdocparse.parser.extract_text_from_image_ocr", return_value="  RECEIPT 15.00  ") as ocr,
+    ):
+        extracted = _ingest_pdf(b"scanned-document", structured_mode=False, config=ExtractionConfig(max_pages=1))
+    assert extracted == "  RECEIPT 15.00  "
+    assert "--- Page" not in extracted
+    assert render.call_args.kwargs["max_pages"] == 1
+    ocr.assert_called_once()
+
+
+def test_scanned_pdf_ocr_empty_page_set_retains_original_short_text():
+    from fastdocparse.config import ExtractionConfig
+    from fastdocparse.parser import _ingest_pdf
+
+    with (
+        patch("fastdocparse.parser.extract_text_from_pdf", return_value="short"),
+        patch("fastdocparse.parser.pdf_to_page_images", return_value=[]) as render,
+        patch("fastdocparse.parser.extract_text_from_image_ocr") as ocr,
+    ):
+        extracted = _ingest_pdf(b"bad-document", structured_mode=False, config=ExtractionConfig(max_pages=2))
+    assert extracted == "short"
+    render.assert_called_once()
+    ocr.assert_not_called()
+
+
+def test_scanned_pdf_real_raster_pages_are_all_routed_to_ocr():
+    """Create a real two-page image-only PDF; model OCR stays mocked/offline."""
+    import io
+
+    import pymupdf
+    from PIL import Image
+
+    from fastdocparse.config import ExtractionConfig
+    from fastdocparse.parser import _ingest_pdf
+
+    image_buffer = io.BytesIO()
+    Image.new("RGB", (96, 48), color="white").save(image_buffer, format="PNG")
+    document = pymupdf.open()
+    for _ in range(2):
+        page = document.new_page(width=96, height=48)
+        page.insert_image(page.rect, stream=image_buffer.getvalue())
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    with patch(
+        "fastdocparse.parser.extract_text_from_image_ocr",
+        side_effect=["DOCUMENT HEADER", "IMPORTANT FIELD ON PAGE 2"],
+    ) as ocr:
+        result = _ingest_pdf(pdf_bytes, structured_mode=False, config=ExtractionConfig(max_pages=2))
+
+    assert "--- Page 1 ---" in result
+    assert "--- Page 2 ---" in result
+    assert "IMPORTANT FIELD ON PAGE 2" in result
+    assert result.index("DOCUMENT HEADER") < result.index("IMPORTANT FIELD ON PAGE 2")
+    assert ocr.call_count == 2
+
+
 def test_tc1_1_invoice_schema_extraction():
     """TC1.1 - Extract with standard invoice schema."""
     schema = Schema(

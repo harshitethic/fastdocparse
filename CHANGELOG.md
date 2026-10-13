@@ -15,6 +15,10 @@ Dates are the PyPI upload dates, which are what a user upgrading actually sees.
 
 ### Fixed
 
+- Scanned multi-page PDFs now run OCR over every rendered page up to
+  `ExtractionConfig.max_pages`, instead of silently reading page one only
+  ([#86](https://github.com/pranjalparmar/fastdocparse/issues/86)).
+
 - `fastdocparse validate-schema` now pluralizes its summary properly ("1 field",
   "3 fields, 1 example") instead of printing the literal "field(s)"/"example(s)",
   matching what `list-schemas` already did ([#82]).
