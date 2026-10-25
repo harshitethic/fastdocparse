@@ -1,6 +1,7 @@
 """OpenAI-compatible LLM client for document extraction."""
 from __future__ import annotations
 
+import math
 import time
 
 from openai import (
@@ -41,6 +42,12 @@ class LLMClient:
 
     def _call(self, messages: list[ChatCompletionMessageParam], temperature: float, max_tokens: int, retries: int = 2, backoff: float = 1.0) -> str:
         """Run a chat completion, retrying transient failures and raising LLMClientError on exhaustion."""
+        if type(max_tokens) is not int or max_tokens < 1:
+            raise ValueError("max_tokens must be a positive integer")
+        if type(retries) is not int or not 0 <= retries <= 5:
+            raise ValueError("retries must be an integer between 0 and 5")
+        if type(backoff) is bool or not math.isfinite(backoff) or not 0 <= backoff <= 60:
+            raise ValueError("backoff must be a finite interval from 0 to 60 seconds")
         last_error: Exception | None = None
         for attempt in range(retries + 1):
             try:
