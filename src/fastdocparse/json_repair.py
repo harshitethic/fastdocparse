@@ -26,7 +26,7 @@ def parse_json_from_llm(text: str) -> dict[str, Any]:
     # raw_decode accepts explanatory prose after the closing brace and handles
     # braces that occur inside quoted string values.
     decoder = json.JSONDecoder()
-    for match in re.finditer(r"\\{", text):
+    for match in re.finditer("[{]", text):
         try:
             obj, _ = decoder.raw_decode(text, match.start())
         except json.JSONDecodeError:
