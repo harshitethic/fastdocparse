@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import OrderedDict
+from copy import deepcopy
 from typing import Any, Callable, Protocol
 
 from .config import ExtractionConfig
@@ -38,10 +39,12 @@ class InMemoryCache:
         if key not in self._store:
             return None
         self._store.move_to_end(key)
-        return self._store[key]
+        # Never expose cached state to mutation by callers.
+        return deepcopy(self._store[key])
 
     def set(self, key: str, value: dict[str, Any]) -> None:
-        self._store[key] = value
+        # Store a snapshot so later mutation of the input cannot poison the cache.
+        self._store[key] = deepcopy(value)
         self._store.move_to_end(key)
         if self._max_size is not None:
             while len(self._store) > self._max_size:
