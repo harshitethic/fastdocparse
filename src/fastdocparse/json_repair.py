@@ -16,21 +16,23 @@ def parse_json_from_llm(text: str) -> dict[str, Any]:
     match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL | re.IGNORECASE)
     if match:
         try:
-            return json.loads(match.group(1).strip())
+            obj = json.loads(match.group(1).strip())
+            if isinstance(obj, dict):
+                return obj
         except json.JSONDecodeError:
             logger.debug("Ignoring invalid fenced JSON in LLM output.", exc_info=True)
 
-    brace_positions = [i for i, c in enumerate(text) if c == "{"]
-    for pos in reversed(brace_positions):
-        end = text.rfind("}", pos)
-        if end > pos:
-            try:
-                obj = json.loads(text[pos:end + 1])
-                if isinstance(obj, dict):
-                    return obj
-            except json.JSONDecodeError:
-                logger.debug("Skipping invalid JSON candidate in LLM output.", exc_info=True)
-                continue
+    # Decode from left to right: nested objects must not hide the outer result.
+    # raw_decode accepts explanatory prose after the closing brace and handles
+    # braces that occur inside quoted string values.
+    decoder = json.JSONDecoder()
+    for match in re.finditer("[{]", text):
+        try:
+            obj, _ = decoder.raw_decode(text, match.start())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            return obj
 
     # Nothing above found valid JSON — likely the response was cut off mid-object
     # (hit max_tokens). Try to close whatever was left open, so the fields that were
