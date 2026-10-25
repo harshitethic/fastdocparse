@@ -1,5 +1,6 @@
 """Tunable extraction parameters, previously hardcoded inline in parser.py."""
 
+import math
 from dataclasses import dataclass
 
 
@@ -24,15 +25,15 @@ class ExtractionConfig:
     max_concurrent_chunks: int = 1
 
     def __post_init__(self):
-        if self.max_pages <= 0:
+        if type(self.max_pages) is not int or self.max_pages <= 0:
             raise ValueError(f"max_pages must be positive, got {self.max_pages}")
-        if self.chunk_max_tokens <= 0:
+        if type(self.chunk_max_tokens) is not int or self.chunk_max_tokens <= 0:
             raise ValueError(f"chunk_max_tokens must be positive, got {self.chunk_max_tokens}")
-        if self.pdf_render_dpi <= 0:
+        if type(self.pdf_render_dpi) is not int or self.pdf_render_dpi <= 0:
             raise ValueError(f"pdf_render_dpi must be positive, got {self.pdf_render_dpi}")
-        if self.max_image_dim <= 0:
+        if type(self.max_image_dim) is not int or self.max_image_dim <= 0:
             raise ValueError(f"max_image_dim must be positive, got {self.max_image_dim}")
-        if not 0.0 <= self.ocr_min_confidence <= 1.0:
+        if not math.isfinite(self.ocr_min_confidence) or not 0.0 <= self.ocr_min_confidence <= 1.0:
             raise ValueError(f"ocr_min_confidence must be between 0 and 1, got {self.ocr_min_confidence}")
-        if self.max_concurrent_chunks <= 0:
+        if type(self.max_concurrent_chunks) is not int or self.max_concurrent_chunks <= 0:
             raise ValueError(f"max_concurrent_chunks must be positive, got {self.max_concurrent_chunks}")
