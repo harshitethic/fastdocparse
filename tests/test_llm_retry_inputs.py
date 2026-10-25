@@ -1,7 +1,8 @@
 """Validate client retry budgets without making network requests."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from fastdocparse.llm_client import LLMClient
 
