@@ -41,6 +41,9 @@ class Schema(BaseModel):
     @field_validator('fields')
     @classmethod
     def validate_field_names(cls, v):
+        names = [field.name for field in v]
+        if len(set(names)) != len(names):
+            raise ValueError("Schema field names must be unique")
         if any(f.name == "_meta" for f in v):
             raise ValueError(
                 "'_meta' is a reserved field name (used for truncation metadata in the "
