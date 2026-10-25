@@ -1,7 +1,7 @@
 """Tunable extraction parameters, previously hardcoded inline in parser.py."""
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
